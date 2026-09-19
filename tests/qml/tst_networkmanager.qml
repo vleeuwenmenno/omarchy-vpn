@@ -83,6 +83,16 @@ TestCase {
     compare(backend.connected, true)
   }
 
+  function test_single_profile_hero_uses_summary() {
+    compare(backend.headline, "2 profiles connected")
+    backend.profiles = [backend.profiles[0]]
+    compare(backend.headline, "")
+    compare(backend.headline || backend.summary, "cloud")
+    backend.profiles = []
+    compare(backend.headline, "")
+    compare(backend.headline || backend.summary, "No profiles")
+  }
+
   function test_activation_does_not_move_rows() {
     var profiles = backend.profiles.slice()
     backend.applyProfiles([profiles[1], profiles[2], profiles[0]])

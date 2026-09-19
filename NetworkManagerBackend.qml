@@ -74,7 +74,7 @@ Item {
   readonly property bool connected: _activeNow
   readonly property bool _working: connectProcess.running || _stage !== ""
   readonly property bool busy: _working || listProcess.running || typesProcess.running
-  readonly property string headline: NetworkManager.nmConnectionCount(profiles)
+  readonly property string headline: Shared.showMasterSwitch(root) ? "" : NetworkManager.nmConnectionCount(profiles)
   readonly property string summary: NetworkManager.nmSummary(profiles)
   readonly property var details: []
   readonly property var targets: NetworkManager.nmTargets(profiles, root.openconnectAuth, addresses)

@@ -585,8 +585,9 @@ check after installing the changes.
 
 Independent backends with multiple targets hide the master switch. Keyboard
 navigation uses the same visibility decision, so it cannot focus a hidden
-control. NetworkManager exposes an optional `headline` (connection count) while
-retaining its full `summary` for bar tooltips and connection-change detection.
+control. NetworkManager exposes an optional `headline` (connection count) only
+with multiple targets; otherwise the hero falls back to `summary`. Its full
+`summary` remains available for bar tooltips and connection-change detection.
 NetworkManager keeps `details` empty because each target row already shows its
 name, type, and live addresses directly. Rows are ordered by case-insensitive
 name and UUID, never by the active-first order returned by nmcli.
