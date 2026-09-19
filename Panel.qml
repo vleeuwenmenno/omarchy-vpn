@@ -751,7 +751,6 @@ Panel {
                 required property var modelData
                 label: modelData.label
                 value: modelData.value
-                tooltip: modelData.tooltip || ""
               }
             }
           }
@@ -894,12 +893,6 @@ Panel {
       onClicked: root.activateRow(targetRow.row)
     }
 
-    PanelToolTip {
-      visible: targetMouse.containsMouse && text !== ""
-      text: targetRow.row ? (targetRow.row.tooltip || "") : ""
-      fontFamily: root.fontFamily
-    }
-
     RowLayout {
       anchors.left: parent.left
       anchors.right: parent.right
@@ -935,7 +928,6 @@ Panel {
           visible: targetRow.row && targetRow.row.detail !== ""
           text: targetRow.row ? targetRow.row.detail : ""
           wrapMode: Text.Wrap
-          maximumLineCount: 2
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1031,7 +1023,6 @@ Panel {
     id: infoPair
     property string label: ""
     property string value: ""
-    property string tooltip: ""
 
     width: parent.width
     spacing: Style.space(12)
@@ -1042,17 +1033,7 @@ Panel {
       Layout.fillWidth: true
       horizontalAlignment: Text.AlignRight
       wrapMode: Text.Wrap
-      MouseArea {
-        id: infoMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-      }
-      PanelToolTip {
-        visible: infoMouse.containsMouse && text !== ""
-        text: infoPair.tooltip
-        fontFamily: root.fontFamily
-      }
+
     }
   }
 

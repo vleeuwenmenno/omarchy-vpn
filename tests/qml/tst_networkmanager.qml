@@ -75,12 +75,21 @@ TestCase {
     process.stdout.text = "GENERAL.UUID:cloud\nIP4.ADDRESS[1]:10.9.0.2/32\n\nGENERAL.UUID:dev\nIP4.ADDRESS[1]:10.8.0.2/32"
     process.running = false
     process.exited(0, 0)
-    compare(backend.targets[1].detail, "10.8.0.2/32")
-    compare(backend.details.length, 1)
-    compare(backend.details[0].label, "Profiles")
+    compare(backend.targets[1].detail, "WireGuard\n10.8.0.2/32")
+    compare(backend.details.length, 0)
     compare(backend.headline, "2 profiles connected")
     process.exited(1, 0)
-    compare(backend.targets[1].detail, "Connected · IP unavailable")
+    compare(backend.targets[1].detail, "WireGuard")
     compare(backend.connected, true)
+  }
+
+  function test_activation_does_not_move_rows() {
+    var profiles = backend.profiles.slice()
+    backend.applyProfiles([profiles[1], profiles[2], profiles[0]])
+    compare(backend.targets.map(function(row) { return row.uuid }), ["cloud", "dev", "prod"])
+    profiles[2].active = true
+    profiles[0].active = false
+    backend.applyProfiles([profiles[2], profiles[1], profiles[0]])
+    compare(backend.targets.map(function(row) { return row.uuid }), ["cloud", "dev", "prod"])
   }
 }

@@ -581,13 +581,15 @@ Independent backends with multiple targets hide the master switch. Keyboard
 navigation uses the same visibility decision, so it cannot focus a hidden
 control. NetworkManager exposes an optional `headline` (connection count) while
 retaining its full `summary` for bar tooltips and connection-change detection.
-`details` contains one Profile/Profiles row with combined active names; detail
-and target rows can expose `tooltip` without embedding backend logic in QML.
+NetworkManager keeps `details` empty because each target row already shows its
+name, type, and live addresses directly. Rows are ordered by case-insensitive
+name and UUID, never by the active-first order returned by nmcli.
 
 After profile discovery, one read-only `nmcli` call queries runtime
 `GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS` for the active UUIDs. The parser keeps
 addresses associated with their profile even when two tunnels use the same IP.
 These are device addresses, not remote AllowedIPs or the public exit address.
 Failed reads clear stale addresses but preserve connection state and controls.
-Inactive profiles never display cached addresses. Address rows wrap to two lines;
-hover shows the full addresses, profile name, and type.
+Inactive profiles never display cached addresses. Address text wraps without a
+line cap, so full addresses stay visible without hover. Missing addresses simply
+omit that line; profile rows do not show instructional placeholder text.

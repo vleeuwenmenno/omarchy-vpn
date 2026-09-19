@@ -237,16 +237,7 @@ function nmTargets(profiles, authScript, addresses) {
       key: "profile:" + profile.uuid,
       label: profile.name,
       active: profile.active === true,
-      tooltip: nmProfileTooltip(profile, addresses),
-      detail: profile.active
-        ? ((addresses && addresses[profile.uuid] && addresses[profile.uuid].length > 0)
-            ? addresses[profile.uuid].join(" · ") : "Connected · IP unavailable")
-        // OpenVPN and VPNC keep identity outside their secrets. WireGuard keeps
-        // its keys in the profile, and OpenConnect settles identity with the
-        // gateway, so neither has anything for the user to have left out.
-        : (!needsUsername(profile) || profile.hasUsername
-            ? "Disconnected"
-            : "No username set"),
+      detail: nmProfileDetail(profile, addresses),
       glyph: glyph,
       args: ["connection", "up", "uuid", profile.uuid],
       uuid: profile.uuid,
@@ -274,25 +265,16 @@ function nmSummary(profiles) {
   return profiles.length === 0 ? "No profiles" : "Not connected"
 }
 
-function nmDetails(profiles, addresses) {
-  var active = profiles.filter(function(profile) { return profile.active })
-  if (active.length === 0) return []
-  return [{
-    label: active.length === 1 ? "Profile" : "Profiles",
-    value: active.map(function(profile) { return profile.name }).join(", "),
-    tooltip: active.map(function(profile) { return nmProfileTooltip(profile, addresses) }).join("\n\n")
-  }]
-}
-
 function nmConnectionCount(profiles) {
   var count = profiles.filter(function(profile) { return profile.active }).length
   return count === 0 ? "Not connected" : count + (count === 1 ? " profile connected" : " profiles connected")
 }
 
-function nmProfileTooltip(profile, addresses) {
-  var text = profile.name + " — " + nmKindLabel(profile)
+function nmProfileDetail(profile, addresses) {
+  var text = nmKindLabel(profile)
   var ips = addresses && addresses[profile.uuid] || []
-  if (profile.active) text += "\n" + (ips.length ? ips.join("\n") : "Tunnel IP unavailable")
+  if (profile.active && ips.length) text += "\n" + ips.join("\n")
+  if (!profile.active && needsUsername(profile) && profile.hasUsername === false) text += "\nNo username set"
   if (profile.gateway) text += "\nGateway: " + profile.gateway
   return text
 }
@@ -346,4 +328,16 @@ function nmDisconnectArgs(profiles, uuid) {
     }
   }
   return args.length === 2 ? [] : args
+}
+
+// nmcli defaults to active-first ordering, which moves a row under the pointer
+// when it is toggled. Keep a deterministic name/UUID order regardless of status.
+function nmOrderedProfiles(profiles) {
+  return profiles.slice().sort(function(a, b) {
+    var left = String(a.name).toLowerCase()
+    var right = String(b.name).toLowerCase()
+    if (left < right) return -1
+    if (left > right) return 1
+    return a.uuid < b.uuid ? -1 : (a.uuid > b.uuid ? 1 : 0)
+  })
 }

@@ -73,7 +73,7 @@ Item {
   readonly property bool busy: _working || listProcess.running || typesProcess.running
   readonly property string headline: NetworkManager.nmConnectionCount(profiles)
   readonly property string summary: NetworkManager.nmSummary(profiles)
-  readonly property var details: NetworkManager.nmDetails(profiles, addresses)
+  readonly property var details: []
   readonly property var targets: NetworkManager.nmTargets(profiles, root.openconnectAuth, addresses)
   readonly property string emptyText: "No profiles yet. Import one with: nmcli connection import type openvpn file <config.ovpn> — or type wireguard file <config.conf>"
   readonly property string currentKey: {
@@ -208,7 +208,7 @@ Item {
       if (runnable(list[i])) eligible.push(list[i])
     }
 
-    root.profiles = eligible
+    root.profiles = NetworkManager.nmOrderedProfiles(eligible)
     var command = NetworkManager.nmAddressCommand(eligible)
     if (command.length === 0) {
       root.addresses = ({})
