@@ -56,7 +56,7 @@ Panel {
   readonly property bool settingsVisible: settingsAvailable && settingsExpanded
   readonly property bool switcherVisible: !providersOpen && vpn.availableBackends.length > 1
   readonly property bool filterVisible: !providersOpen && backend !== null && backend.supportsFilter
-  readonly property bool masterSwitchVisible: backend !== null
+  readonly property bool masterSwitchVisible: !providersOpen && Shared.showMasterSwitch(backend)
   readonly property bool headerHasCursor: cursorActive && focusSection === "header"
   readonly property bool gearHasCursor: headerHasCursor && headerIndex === 0
   readonly property bool switchHasCursor: headerHasCursor && headerIndex === 1
@@ -673,7 +673,7 @@ Panel {
               anchors.leftMargin: Style.space(4)
               anchors.rightMargin: Style.space(4)
               title: root.backend ? root.backend.label : "VPN"
-              meta: root.backend ? root.backend.summary : "Nothing detected"
+              meta: root.backend ? (root.backend.headline || root.backend.summary) : "Nothing detected"
               foreground: root.foreground
               fontFamily: root.fontFamily
               iconOpacity: vpn.anyConnected ? 1.0 : 0.5
@@ -751,6 +751,7 @@ Panel {
                 required property var modelData
                 label: modelData.label
                 value: modelData.value
+                tooltip: modelData.tooltip || ""
               }
             }
           }
@@ -814,7 +815,7 @@ Panel {
             PanelSectionHeader {
               text: {
                 if (root.providersOpen) return "PROVIDERS"
-                if (root.backend && root.backend.independentTargets === true) return "PROFILES · CLICK TO TOGGLE"
+                if (root.backend && root.backend.independentTargets === true) return "PROFILES"
                 return root.filterVisible && root.backend && root.backend.filter !== "" ? "MATCHING" : "CONNECT"
               }
               foreground: root.foreground
@@ -885,11 +886,18 @@ Panel {
     implicitHeight: rowContent.implicitHeight + Style.spacing.rowPaddingX
 
     MouseArea {
+      id: targetMouse
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.setRowCursor(targetRow.cursorIndex)
       onClicked: root.activateRow(targetRow.row)
+    }
+
+    PanelToolTip {
+      visible: targetMouse.containsMouse && text !== ""
+      text: targetRow.row ? (targetRow.row.tooltip || "") : ""
+      fontFamily: root.fontFamily
     }
 
     RowLayout {
@@ -926,6 +934,8 @@ Panel {
           Layout.fillWidth: true
           visible: targetRow.row && targetRow.row.detail !== ""
           text: targetRow.row ? targetRow.row.detail : ""
+          wrapMode: Text.Wrap
+          maximumLineCount: 2
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1017,16 +1027,33 @@ Panel {
     }
   }
 
-  component InfoPair: Row {
+  component InfoPair: RowLayout {
+    id: infoPair
     property string label: ""
     property string value: ""
+    property string tooltip: ""
 
     width: parent.width
-    spacing: Style.space(8)
+    spacing: Style.space(12)
 
-    InfoLabel { text: label }
-    Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    InfoLabel { text: infoPair.label; Layout.alignment: Qt.AlignTop }
+    InfoValue {
+      text: infoPair.value
+      Layout.fillWidth: true
+      horizontalAlignment: Text.AlignRight
+      wrapMode: Text.Wrap
+      MouseArea {
+        id: infoMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+      }
+      PanelToolTip {
+        visible: infoMouse.containsMouse && text !== ""
+        text: infoPair.tooltip
+        fontFamily: root.fontFamily
+      }
+    }
   }
 
   component InfoLabel: Text {

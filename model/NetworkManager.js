@@ -221,7 +221,7 @@ function nmKindLabel(profile) {
 // the others get `args` to hand to nmcli, because its activation is not an
 // nmcli call. Without the helper an OpenConnect row is still listed and still
 // says what it is, but has nothing to run.
-function nmTargets(profiles, authScript) {
+function nmTargets(profiles, authScript, addresses) {
   var targets = []
   for (var i = 0; i < profiles.length; i++) {
     var profile = profiles[i]
@@ -237,13 +237,15 @@ function nmTargets(profiles, authScript) {
       key: "profile:" + profile.uuid,
       label: profile.name,
       active: profile.active === true,
+      tooltip: nmProfileTooltip(profile, addresses),
       detail: profile.active
-        ? "Connected"
+        ? ((addresses && addresses[profile.uuid] && addresses[profile.uuid].length > 0)
+            ? addresses[profile.uuid].join(" · ") : "Connected · IP unavailable")
         // OpenVPN and VPNC keep identity outside their secrets. WireGuard keeps
         // its keys in the profile, and OpenConnect settles identity with the
         // gateway, so neither has anything for the user to have left out.
         : (!needsUsername(profile) || profile.hasUsername
-            ? nmKindLabel(profile) + " profile"
+            ? "Disconnected"
             : "No username set"),
       glyph: glyph,
       args: ["connection", "up", "uuid", profile.uuid],
@@ -272,21 +274,53 @@ function nmSummary(profiles) {
   return profiles.length === 0 ? "No profiles" : "Not connected"
 }
 
-function nmDetails(profiles) {
-  var rows = []
-  for (var i = 0; i < profiles.length; i++) {
-    if (!profiles[i].active) continue
-    rows.push(Shared.detail("Profile", profiles[i].name))
-    rows.push(Shared.detail("Type", nmKindLabel(profiles[i])))
-    // Which gateway an interactive or concentrator-backed profile reached,
-    // since an organisation commonly has several and the profile name rarely
-    // says which one.
-    if ((isOpenConnect(profiles[i]) || isVpnc(profiles[i])) && profiles[i].gateway) {
-      rows.push(Shared.detail("Gateway", profiles[i].gateway))
+function nmDetails(profiles, addresses) {
+  var active = profiles.filter(function(profile) { return profile.active })
+  if (active.length === 0) return []
+  return [{
+    label: active.length === 1 ? "Profile" : "Profiles",
+    value: active.map(function(profile) { return profile.name }).join(", "),
+    tooltip: active.map(function(profile) { return nmProfileTooltip(profile, addresses) }).join("\n\n")
+  }]
+}
+
+function nmConnectionCount(profiles) {
+  var count = profiles.filter(function(profile) { return profile.active }).length
+  return count === 0 ? "Not connected" : count + (count === 1 ? " profile connected" : " profiles connected")
+}
+
+function nmProfileTooltip(profile, addresses) {
+  var text = profile.name + " — " + nmKindLabel(profile)
+  var ips = addresses && addresses[profile.uuid] || []
+  if (profile.active) text += "\n" + (ips.length ? ips.join("\n") : "Tunnel IP unavailable")
+  if (profile.gateway) text += "\nGateway: " + profile.gateway
+  return text
+}
+
+// Read runtime addresses, never configured AllowedIPs (those are remote routes).
+// GENERAL.UUID starts a profile block; IPv6 colons use nmcli's normal escaping.
+function parseNmAddresses(raw) {
+  var result = {}
+  var uuid = ""
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var pair = splitNmcliLine(lines[i].trim())
+    if (pair[0] === "GENERAL.UUID") {
+      uuid = pair[1]
+      if (uuid) result[uuid] = []
+    } else if (uuid && /^IP[46]\.ADDRESS(?:\[\d+\])?$/.test(pair[0]) && pair[1] && pair[1] !== "--") {
+      if (result[uuid].indexOf(pair[1]) === -1) result[uuid].push(pair[1])
     }
   }
-  if (rows.length > 0) rows.push(Shared.detail("Managed by", "NetworkManager"))
-  return rows
+  return result
+}
+
+function nmAddressCommand(profiles) {
+  var args = ["nmcli", "-t", "-f", "GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS", "connection", "show"]
+  for (var i = 0; i < profiles.length; i++) {
+    if (profiles[i].active) args.push("uuid", profiles[i].uuid)
+  }
+  return args.length === 6 ? [] : args
 }
 
 function activeNmProfile(profiles) {

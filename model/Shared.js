@@ -172,3 +172,8 @@ function targetAction(backend, target) {
   return backend.independentTargets === true && targetIsActive(backend, target)
     ? "disconnect" : "connect"
 }
+
+function showMasterSwitch(backend) {
+  return backend !== null && backend !== undefined
+    && (backend.independentTargets !== true || backend.targets.length <= 1)
+}

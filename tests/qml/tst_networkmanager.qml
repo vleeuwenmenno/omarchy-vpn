@@ -62,4 +62,25 @@ TestCase {
     compare(backend.summary, "cloud + work-dev")
     verify(backend.lastError.indexOf("Activation failed") !== -1)
   }
+
+  function test_addresses_enrich_rows_and_failed_read_clears_them() {
+    backend.applyProfiles(backend.profiles)
+    var process = null
+    for (var i = 0; i < backend.children.length; i++) {
+      var child = backend.children[i]
+      if (child.command && child.command[3] === "GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS") process = child
+    }
+    verify(process !== null)
+    compare(process.command, ["nmcli", "-t", "-f", "GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS", "connection", "show", "uuid", "cloud", "uuid", "dev"])
+    process.stdout.text = "GENERAL.UUID:cloud\nIP4.ADDRESS[1]:10.9.0.2/32\n\nGENERAL.UUID:dev\nIP4.ADDRESS[1]:10.8.0.2/32"
+    process.running = false
+    process.exited(0, 0)
+    compare(backend.targets[1].detail, "10.8.0.2/32")
+    compare(backend.details.length, 1)
+    compare(backend.details[0].label, "Profiles")
+    compare(backend.headline, "2 profiles connected")
+    process.exited(1, 0)
+    compare(backend.targets[1].detail, "Connected · IP unavailable")
+    compare(backend.connected, true)
+  }
 }

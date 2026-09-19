@@ -2,8 +2,10 @@
 
 Personal fork of [jkoestinger/omarchy-vpn](https://github.com/jkoestinger/omarchy-vpn).
 NetworkManager profiles toggle independently: `cloud`, `work-dev`, and `work-prod`
-can all remain active. Each row has its own switch; the master switch disconnects
-all NetworkManager profiles. Other VPN tools retain their existing switching
+can all remain active. Each row has its own switch and shows this device’s live
+tunnel IPv4/IPv6 addresses. Hover a row for its profile name and VPN type. Active
+names are grouped under Profile/Profiles. The master switch is hidden when more
+than one profile is available; with one profile it controls that connection. Other VPN tools retain their existing switching
 behavior and do not automatically tear down NetworkManager profiles.
 
 NetworkManager retains control of routes and DNS. This widget does not change

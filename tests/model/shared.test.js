@@ -92,3 +92,11 @@ test("independent rows disconnect only themselves while legacy rows connect", ()
   eq(Shared.targetIsActive({ currentKey: "first" }, { key: "first" }), true)
   eq(Shared.targetIsActive(nm, { key: "second", active: true }), true)
 })
+
+
+test("master switch is hidden for multiple independent profiles", () => {
+  eq(Shared.showMasterSwitch(null), false)
+  eq(Shared.showMasterSwitch({ independentTargets: true, targets: [{}, {}] }), false)
+  eq(Shared.showMasterSwitch({ independentTargets: true, targets: [{}] }), true)
+  eq(Shared.showMasterSwitch({ independentTargets: false, targets: [{}, {}] }), true)
+})

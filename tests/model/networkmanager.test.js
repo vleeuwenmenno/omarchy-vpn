@@ -88,11 +88,11 @@ test("a certificate-only OpenVPN profile is not missing a username", () => {
   eq(NetworkManager.needsUsername({ kind: "vpn" }), true)
 })
 
-test("nmTargets labels a certificate-only profile by its kind", () => {
+test("nmTargets shows certificate-only profiles as disconnected without a username warning", () => {
   const targets = NetworkManager.nmTargets([
     { name: "azure-p2s", uuid: "uuid-tls", kind: "vpn", active: false, hasUsername: false, connectionType: "tls" }
   ])
-  eq(targets[0].detail, "OpenVPN profile")
+  eq(targets[0].detail, "Disconnected")
   eq(targets[0].connectionType, "tls")
 })
 
@@ -104,8 +104,8 @@ test("nmTargets flags an OpenVPN profile with no username", () => {
   ])
   eq(targets[0].detail, "No username set")
   // WireGuard keeps its keys in the profile, so there is nothing to leave out.
-  eq(targets[1].detail, "WireGuard profile")
-  eq(targets[2].detail, "Connected")
+  eq(targets[1].detail, "Disconnected")
+  eq(targets[2].detail, "Connected · IP unavailable")
   eq(targets[0].args, ["connection", "up", "uuid", "uuid-1"])
 })
 
@@ -159,7 +159,7 @@ test("nmTargets never asks an OpenConnect profile for a username", () => {
   const targets = NetworkManager.nmTargets([
     { name: "Work", uuid: "uuid-oc", kind: "openconnect", active: false, hasUsername: false }
   ], "/plugins/vpn/bin/omarchy-openconnect-auth")
-  eq(targets[0].detail, "OpenConnect profile")
+  eq(targets[0].detail, "Disconnected")
   eq(targets[0].glyph, Shared.GLYPH_SHIELD_LOCK)
 })
 
@@ -183,15 +183,16 @@ test("nmTargets omits the command when the helper is unknown", () => {
     { name: "Work", uuid: "uuid-oc", kind: "openconnect", active: false }
   ])
   eq(targets[0].command, undefined)
-  eq(targets[0].detail, "OpenConnect profile")
+  eq(targets[0].detail, "Disconnected")
 })
 
 test("nmDetails names the gateway for a live OpenConnect tunnel", () => {
   const rows = NetworkManager.nmDetails([
     { name: "Work", uuid: "uuid-oc", kind: "openconnect", active: true, gateway: "vpn.example.com" }
   ])
-  eq(rows[1], Shared.detail("Type", "OpenConnect"))
-  eq(rows[2], Shared.detail("Gateway", "vpn.example.com"))
+  eq(rows.length, 1)
+  eq(rows[0].tooltip.includes("OpenConnect"), true)
+  eq(rows[0].tooltip.includes("Gateway: vpn.example.com"), true)
 })
 
 // OpenVPN and WireGuard have no gateway field, and an empty row would read as
@@ -200,8 +201,10 @@ test("nmDetails adds no gateway row for the other kinds", () => {
   const rows = NetworkManager.nmDetails([
     { name: "Home", uuid: "uuid-wg", kind: "wireguard", active: true }
   ])
-  eq(rows.length, 3)
-  eq(rows[2], Shared.detail("Managed by", "NetworkManager"))
+  eq(rows.length, 1)
+  eq(rows[0].label, "Profile")
+  eq(rows[0].value, "Home")
+  eq(rows[0].tooltip.includes("Gateway:"), false)
 })
 
 // -------------------------------------------------------------------- VPNC
@@ -233,7 +236,7 @@ test("nmTargets presents VPNC as an ordinary NetworkManager profile", () => {
   const targets = NetworkManager.nmTargets([
     { name: "Campus", uuid: "uuid-vpnc", kind: "vpnc", active: false, hasUsername: true, gateway: "vpn.example.com" }
   ])
-  eq(targets[0].detail, "VPNC profile")
+  eq(targets[0].detail, "Disconnected")
   eq(targets[0].glyph, Shared.GLYPH_SHIELD_LOCK)
   eq(targets[0].args, ["connection", "up", "uuid", "uuid-vpnc"])
   eq(targets[0].command, undefined)
@@ -244,8 +247,9 @@ test("nmDetails names a live VPNC tunnel and its gateway", () => {
   const rows = NetworkManager.nmDetails([
     { name: "Campus", uuid: "uuid-vpnc", kind: "vpnc", active: true, gateway: "vpn.example.com" }
   ])
-  eq(rows[1], Shared.detail("Type", "VPNC"))
-  eq(rows[2], Shared.detail("Gateway", "vpn.example.com"))
+  eq(rows.length, 1)
+  eq(rows[0].tooltip.includes("VPNC"), true)
+  eq(rows[0].tooltip.includes("Gateway: vpn.example.com"), true)
 })
 
 test("nmSummary tells no profiles from none connected", () => {
@@ -276,4 +280,36 @@ test("connecting a profile never generates a teardown of another", () => {
   eq(NetworkManager.nmDisconnectArgs(profiles, ""), ["connection", "down", "uuid", "dev", "uuid", "cloud"])
   eq(NetworkManager.nmDisconnectArgs([], ""), [])
   eq(NetworkManager.nmActivationCommand({ command: ["auth-helper", "uuid"] }), ["auth-helper", "uuid"])
+})
+
+
+test("runtime addresses are keyed by profile UUID, including escaped IPv6", () => {
+  eq(NetworkManager.parseNmAddresses([
+    "GENERAL.UUID:dev", "IP4.ADDRESS[1]:10.8.0.2/32", "IP4.ADDRESS[2]:10.8.0.2/32",
+    "IP6.ADDRESS[1]:fd00\\:1234\\:\\:2/128", "",
+    "GENERAL.UUID:prod", "IP4.ADDRESS[1]:10.8.0.2/32", "IP6.ADDRESS[1]:--"
+  ].join("\n")), { dev: ["10.8.0.2/32", "fd00:1234::2/128"], prod: ["10.8.0.2/32"] })
+  eq(NetworkManager.parseNmAddresses(""), {})
+})
+
+test("grouped profiles and address tooltips retain identity even with duplicate IPs", () => {
+  const profiles = [
+    { name: "work-dev", uuid: "dev", kind: "wireguard", active: true },
+    { name: "work-prod", uuid: "prod", kind: "wireguard", active: true },
+    { name: "cloud", uuid: "cloud", kind: "wireguard", active: false }
+  ]
+  const addresses = { dev: ["10.8.0.2/32"], prod: ["10.8.0.2/32"], cloud: ["old"] }
+  const rows = NetworkManager.nmTargets(profiles, "", addresses)
+  eq(rows[0].detail, "10.8.0.2/32")
+  eq(rows[1].tooltip, "work-prod — WireGuard\n10.8.0.2/32")
+  eq(rows[2].tooltip, "cloud — WireGuard")
+  eq(rows[2].detail, "Disconnected")
+  const details = NetworkManager.nmDetails(profiles, addresses)
+  eq(details.length, 1)
+  eq(details[0].label, "Profiles")
+  eq(details[0].value, "work-dev, work-prod")
+  eq(NetworkManager.nmDetails([]), [])
+  eq(NetworkManager.nmConnectionCount(profiles), "2 profiles connected")
+  eq(NetworkManager.nmAddressCommand(profiles), ["nmcli", "-t", "-f", "GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS", "connection", "show", "uuid", "dev", "uuid", "prod"])
+  eq(NetworkManager.nmAddressCommand([]), [])
 })

@@ -33,6 +33,7 @@ Item {
   readonly property bool independentTargets: true
   readonly property bool allowConcurrent: true
   property var profiles: []
+  property var addresses: ({})
   property string actionStatus: ""
   property string lastError: ""
 
@@ -70,9 +71,10 @@ Item {
   readonly property bool connected: _activeNow
   readonly property bool _working: connectProcess.running || _stage !== ""
   readonly property bool busy: _working || listProcess.running || typesProcess.running
+  readonly property string headline: NetworkManager.nmConnectionCount(profiles)
   readonly property string summary: NetworkManager.nmSummary(profiles)
-  readonly property var details: NetworkManager.nmDetails(profiles)
-  readonly property var targets: NetworkManager.nmTargets(profiles, root.openconnectAuth)
+  readonly property var details: NetworkManager.nmDetails(profiles, addresses)
+  readonly property var targets: NetworkManager.nmTargets(profiles, root.openconnectAuth, addresses)
   readonly property string emptyText: "No profiles yet. Import one with: nmcli connection import type openvpn file <config.ovpn> — or type wireguard file <config.conf>"
   readonly property string currentKey: {
     var profile = NetworkManager.activeNmProfile(profiles)
@@ -113,7 +115,7 @@ Item {
   // second one is still out would hand it a list the details it is holding do
   // not describe. One discovery at a time.
   function refresh() {
-    if (!_toolsPresent || listProcess.running || typesProcess.running) return
+    if (!_toolsPresent || listProcess.running || typesProcess.running || addressesProcess.running) return
     listProcess.running = true
   }
 
@@ -207,6 +209,13 @@ Item {
     }
 
     root.profiles = eligible
+    var command = NetworkManager.nmAddressCommand(eligible)
+    if (command.length === 0) {
+      root.addresses = ({})
+    } else if (!addressesProcess.running) {
+      addressesProcess.command = command
+      addressesProcess.running = true
+    }
   }
 
   Timer {
@@ -424,6 +433,19 @@ Item {
         usable.push(candidate)
       }
       root.applyProfiles(usable)
+    }
+  }
+
+  // Address failures must not hide working profiles or retain stale tunnel IPs.
+  Process {
+    id: addressesProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: addressesStdout; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      root.addresses = exitCode === 0
+        ? NetworkManager.parseNmAddresses(String(addressesStdout.text || "")) : ({})
     }
   }
 

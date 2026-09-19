@@ -573,3 +573,21 @@ The harness covers connecting alongside active profiles, disconnecting one,
 explicitly disconnecting all, and retaining other profiles after a failed
 activation. Live panel layout and route/DNS behavior still require a desktop
 check after installing the fork.
+
+
+### Compact profile presentation
+
+Independent backends with multiple targets hide the master switch. Keyboard
+navigation uses the same visibility decision, so it cannot focus a hidden
+control. NetworkManager exposes an optional `headline` (connection count) while
+retaining its full `summary` for bar tooltips and connection-change detection.
+`details` contains one Profile/Profiles row with combined active names; detail
+and target rows can expose `tooltip` without embedding backend logic in QML.
+
+After profile discovery, one read-only `nmcli` call queries runtime
+`GENERAL.UUID,IP4.ADDRESS,IP6.ADDRESS` for the active UUIDs. The parser keeps
+addresses associated with their profile even when two tunnels use the same IP.
+These are device addresses, not remote AllowedIPs or the public exit address.
+Failed reads clear stale addresses but preserve connection state and controls.
+Inactive profiles never display cached addresses. Address rows wrap to two lines;
+hover shows the full addresses, profile name, and type.
