@@ -253,3 +253,27 @@ test("nmSummary tells no profiles from none connected", () => {
   eq(NetworkManager.nmSummary([{ name: "Work", active: false }]), "Not connected")
   eq(NetworkManager.nmSummary([{ name: "Work", active: true }]), "Work")
 })
+
+test("independent profiles all report active and appear in summary", () => {
+  const profiles = ["work-prod", "cloud", "work-dev"].map((name, i) =>
+    ({ name, uuid: "uuid-" + i, kind: "wireguard", active: true }))
+  eq(NetworkManager.nmTargets(profiles).map(row => row.active), [true, true, true])
+  eq(NetworkManager.nmSummary(profiles), "cloud + work-dev + work-prod")
+  profiles[2].active = false
+  eq(NetworkManager.nmSummary(profiles), "cloud + work-prod")
+})
+
+test("connecting a profile never generates a teardown of another", () => {
+  const profiles = [
+    { name: "dev", uuid: "dev", kind: "wireguard", active: true },
+    { name: "prod", uuid: "prod", kind: "wireguard", active: false },
+    { name: "cloud", uuid: "cloud", kind: "wireguard", active: true }
+  ]
+  const target = NetworkManager.nmTargets(profiles)[1]
+  eq(NetworkManager.nmActivationCommand(target), ["nmcli", "connection", "up", "uuid", "prod"])
+  eq(NetworkManager.nmDisconnectArgs(profiles, "dev"), ["connection", "down", "uuid", "dev"])
+  eq(NetworkManager.nmDisconnectArgs(profiles, "prod"), [])
+  eq(NetworkManager.nmDisconnectArgs(profiles, ""), ["connection", "down", "uuid", "dev", "uuid", "cloud"])
+  eq(NetworkManager.nmDisconnectArgs([], ""), [])
+  eq(NetworkManager.nmActivationCommand({ command: ["auth-helper", "uuid"] }), ["auth-helper", "uuid"])
+})

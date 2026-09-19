@@ -125,7 +125,9 @@ if it cannot, the contract is what should change.
 
 ## Design notes
 
-**Exclusivity.** Every connect goes through `VpnController.connectVia()` or
+**Exclusivity.** Backends may expose `allowConcurrent: true` to opt out of
+automatic teardown in both directions. NetworkManager does so because its
+profiles may route independent subnets. Every connect goes through `VpnController.connectVia()` or
 `toggleActive()`, never straight to a backend. Those disconnect every other
 connected backend, wait for them to report down (700ms polls, ~10s cap, then
 proceed anyway so a stuck teardown cannot swallow the user's connect), and only
@@ -446,11 +448,15 @@ Profiles the user imported live under `/etc`, so anything under `/run` is
 dropped. An nmcli too old to report FILENAME leaves it empty, which keeps the
 row rather than emptying the list.
 
-**Exclusivity inside the backend.** The controller enforces one tunnel across
-backends, but NetworkManager will happily run two of its own profiles at once,
-and picking one is never a request for both. So `connectTo` runs two commands
-when something else is up: down the active profile, then up the chosen one. A
-failed teardown still proceeds, for the same reason the controller's does.
+**Independent NetworkManager profiles.** `independentTargets` tells the panel to
+show a switch for each row and the controller to call `disconnectTarget(target)`
+when an active row is selected. Targets expose `active`; single-target backends
+continue to use `currentKey`. `connectTo` activates only the requested profile.
+`disconnect()` explicitly disconnects all active profiles listed by this backend;
+`disconnectTarget` affects one UUID. The summary includes every active name, so
+connection changes invalidate the public-IP reading even while other tunnels stay
+up. State is observed from NetworkManager, not optimistically forced off when
+only one of several tunnels is disconnected. Routing and DNS remain profile policy.
 
 **AmneziaWG reads the config, the shell only fetches it.** `awg-quick` has no
 daemon to ask, so everything the panel knows about a profile comes out of the
@@ -551,3 +557,19 @@ The QML halves are not covered: they are `Process` plumbing and bindings, and
 the interesting logic was pushed into `model/` precisely so it could be tested.
 When a bug turns out to live in a parser, the fix belongs there with a case
 beside it.
+
+### Concurrent-profile QML regression tests
+
+The NetworkManager backend also has a hermetic QML harness. Its replacement
+`Quickshell.Io` module never spawns processes, so tests can verify command
+arguments and failed activation without touching host connections:
+
+```bash
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic QT_QUICK_CONTROLS_STYLE=Basic \
+  /usr/lib/qt6/bin/qmltestrunner -import tests/qml/imports -input tests/qml
+```
+
+The harness covers connecting alongside active profiles, disconnecting one,
+explicitly disconnecting all, and retaining other profiles after a failed
+activation. Live panel layout and route/DNS behavior still require a desktop
+check after installing the fork.

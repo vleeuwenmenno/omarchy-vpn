@@ -1,5 +1,16 @@
 # omarchy-vpn
 
+Personal fork of [jkoestinger/omarchy-vpn](https://github.com/jkoestinger/omarchy-vpn).
+NetworkManager profiles toggle independently: `cloud`, `work-dev`, and `work-prod`
+can all remain active. Each row has its own switch; the master switch disconnects
+all NetworkManager profiles. Other VPN tools retain their existing switching
+behavior and do not automatically tear down NetworkManager profiles.
+
+NetworkManager retains control of routes and DNS. This widget does not change
+profile settings or resolve overlapping routes; it only activates the profiles
+you select. A split tunnel does not necessarily change your public IP.
+
+
 A VPN widget for the Omarchy bar. One icon shows whether you are behind a
 tunnel; one panel connects, disconnects, and switches between the VPN tools you
 actually have installed.
@@ -18,8 +29,8 @@ Each installed tool gets its own chip and its own view — Proton VPN above,
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/jkoestinger/omarchy-vpn.git
-omarchy plugin enable jkoestinger.vpn
+omarchy plugin add https://github.com/vleeuwenmenno/omarchy-vpn.git
+omarchy plugin enable vleeuwenmenno.vpn
 ```
 
 Plugins land disabled so you can read the code before it runs — it runs
@@ -27,11 +38,11 @@ unsandboxed inside `omarchy-shell`, like every Omarchy plugin. **Setup ›
 Plugins** does the same thing from the menu.
 
 The icon appears at the right end of the bar. Move it with
-`omarchy bar move jkoestinger.vpn --before omarchy.clock`, or any other
+`omarchy bar move vleeuwenmenno.vpn --before omarchy.clock`, or any other
 placement.
 
 To update later: `omarchy plugin update`. To remove:
-`omarchy plugin remove jkoestinger.vpn`.
+`omarchy plugin remove vleeuwenmenno.vpn`.
 
 ## Using it
 
@@ -349,15 +360,15 @@ The widget answers on the shell's IPC bus, so keybindings and scripts can drive
 it:
 
 ```bash
-omarchy-shell jkoestinger.vpn status       # "Proton VPN · CH#1129 · Zurich, Switzerland"
-omarchy-shell jkoestinger.vpn ip           # current public address
-omarchy-shell jkoestinger.vpn backends     # "proton mullvad windscribe warp networkmanager amneziawg"
-omarchy-shell jkoestinger.vpn use mullvad  # switch the panel's active tool
-omarchy-shell jkoestinger.vpn connect CH   # country code, region or profile name, or row key
-omarchy-shell jkoestinger.vpn quickconnect # each tool's default connection
-omarchy-shell jkoestinger.vpn disconnect
-omarchy-shell jkoestinger.vpn setup        # run the setup hint's command in a terminal
-omarchy-shell jkoestinger.vpn toggle       # open or close the panel
+omarchy-shell vleeuwenmenno.vpn status       # "Proton VPN · CH#1129 · Zurich, Switzerland"
+omarchy-shell vleeuwenmenno.vpn ip           # current public address
+omarchy-shell vleeuwenmenno.vpn backends     # "proton mullvad windscribe warp networkmanager amneziawg"
+omarchy-shell vleeuwenmenno.vpn use mullvad  # switch the panel's active tool
+omarchy-shell vleeuwenmenno.vpn connect CH   # country code, region or profile name, or row key
+omarchy-shell vleeuwenmenno.vpn quickconnect # each tool's default connection
+omarchy-shell vleeuwenmenno.vpn disconnect
+omarchy-shell vleeuwenmenno.vpn setup        # run the setup hint's command in a terminal
+omarchy-shell vleeuwenmenno.vpn toggle       # open or close the panel
 ```
 
 ## Contributing

@@ -236,6 +236,7 @@ function nmTargets(profiles, authScript) {
     var target = {
       key: "profile:" + profile.uuid,
       label: profile.name,
+      active: profile.active === true,
       detail: profile.active
         ? "Connected"
         // OpenVPN and VPNC keep identity outside their secrets. WireGuard keeps
@@ -263,9 +264,11 @@ function nmTargets(profiles, authScript) {
 }
 
 function nmSummary(profiles) {
+  var names = []
   for (var i = 0; i < profiles.length; i++) {
-    if (profiles[i].active) return profiles[i].name
+    if (profiles[i].active) names.push(profiles[i].name)
   }
+  if (names.length > 0) return names.sort().join(" + ")
   return profiles.length === 0 ? "No profiles" : "Not connected"
 }
 
@@ -291,4 +294,22 @@ function activeNmProfile(profiles) {
     if (profiles[i].active) return profiles[i]
   }
   return null
+}
+
+// Activation never includes a teardown: routing policy belongs to each profile.
+function nmActivationCommand(target) {
+  if (target && target.command) return target.command
+  return ["nmcli"].concat((target && target.args) || [])
+}
+
+// Empty UUID means the explicit disconnect-all action. Only listed active VPN
+// profiles are included, never Wi-Fi, Tailscale, or another backend's tunnels.
+function nmDisconnectArgs(profiles, uuid) {
+  var args = ["connection", "down"]
+  for (var i = 0; i < profiles.length; i++) {
+    if (profiles[i].active && (!uuid || profiles[i].uuid === uuid)) {
+      args.push("uuid", profiles[i].uuid)
+    }
+  }
+  return args.length === 2 ? [] : args
 }

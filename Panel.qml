@@ -9,8 +9,8 @@ import "model/Shared.js" as Shared
 
 Panel {
   id: root
-  moduleName: "jkoestinger.vpn"
-  ipcTarget: "jkoestinger.vpn"
+  moduleName: "vleeuwenmenno.vpn"
+  ipcTarget: "vleeuwenmenno.vpn"
   manageIpc: false
 
   // "switcher" | "header" | "hero" | "toggles" | "rows"
@@ -327,8 +327,7 @@ Panel {
       return
     }
     if (!backend) return
-    // Through the controller, never straight to the backend: picking a tunnel
-    // means the others come down first.
+    // The controller handles independent target toggles and exclusive tools.
     vpn.connectVia(backend, row)
   }
 
@@ -629,7 +628,9 @@ Panel {
 
               PanelToolTip {
                 visible: masterSwitch.containsMouse
-                text: masterSwitch.checked ? "Disconnect" : "Connect"
+                text: masterSwitch.checked
+                  ? (root.backend && root.backend.independentTargets === true ? "Disconnect all profiles" : "Disconnect")
+                  : "Connect"
                 fontFamily: root.fontFamily
               }
             }
@@ -813,6 +814,7 @@ Panel {
             PanelSectionHeader {
               text: {
                 if (root.providersOpen) return "PROVIDERS"
+                if (root.backend && root.backend.independentTargets === true) return "PROFILES · CLICK TO TOGGLE"
                 return root.filterVisible && root.backend && root.backend.filter !== "" ? "MATCHING" : "CONNECT"
               }
               foreground: root.foreground
@@ -869,10 +871,12 @@ Panel {
     // the reason and a row that does nothing at all explains nothing.
     readonly property bool rowMuted: (isProvider && row.hidden === true)
       || (row !== null && row.blocked === true)
+    readonly property bool isIndependent: !isProvider && root.backend !== null
+      && root.backend.independentTargets === true
     readonly property bool isCurrent: !isProvider
       && root.backend !== null
       && row
-      && row.key === root.backend.currentKey
+      && Shared.targetIsActive(root.backend, row)
 
     hasCursor: root.cursorActive && root.focusSection === "rows" && root.rowIndex === cursorIndex
     current: isCurrent
@@ -930,7 +934,7 @@ Panel {
       }
 
       Text {
-        visible: targetRow.isCurrent
+        visible: targetRow.isCurrent && !targetRow.isIndependent
         text: Shared.GLYPH_CHECK
         color: root.foreground
         font.family: root.fontFamily
@@ -939,8 +943,9 @@ Panel {
       }
 
       ToggleSwitch {
-        visible: targetRow.isProvider
-        checked: targetRow.isProvider && !targetRow.row.hidden
+        visible: targetRow.isProvider || targetRow.isIndependent
+        checked: targetRow.isProvider ? !targetRow.row.hidden : targetRow.isCurrent
+        busy: targetRow.isIndependent && root.backend.busy
         foreground: root.foreground
         // The row owns the click and the cursor ring; a switch that owned them
         // too would read as a second target inside the first.

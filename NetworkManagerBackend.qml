@@ -30,6 +30,8 @@ Item {
   readonly property bool supportsFilter: false
   readonly property string filterPlaceholder: ""
 
+  readonly property bool independentTargets: true
+  readonly property bool allowConcurrent: true
   property var profiles: []
   property string actionStatus: ""
   property string lastError: ""
@@ -54,10 +56,8 @@ Item {
   // Said instead of the panel's "install a VPN tool" line, which is unhelpful
   // advice for someone who has the tools and only lacks a profile.
   readonly property string setupHint: _toolsPresent && profiles.length === 0 ? emptyText : ""
-  property int _desired: -1
   property var _pendingTarget: null
-  // Connecting can take two commands — down the profile that is up, then up the
-  // one that was asked for. "" when nothing is in flight.
+  // A command affects only its selected profile (or explicitly all profiles).
   property string _stage: ""
 
   // NetworkManager refuses to activate a profile whose secrets it does not
@@ -67,8 +67,8 @@ Item {
   signal authRequired(string command)
 
   readonly property bool _activeNow: NetworkManager.activeNmProfile(profiles) !== null
-  readonly property bool connected: _desired === -1 ? _activeNow : (_desired === 1)
-  readonly property bool _working: connectProcess.running || chainTimer.running || _stage !== ""
+  readonly property bool connected: _activeNow
+  readonly property bool _working: connectProcess.running || _stage !== ""
   readonly property bool busy: _working || listProcess.running || typesProcess.running
   readonly property string summary: NetworkManager.nmSummary(profiles)
   readonly property var details: NetworkManager.nmDetails(profiles)
@@ -140,7 +140,6 @@ Item {
       return
     }
 
-    _desired = 1
     _pendingTarget = target
     lastError = ""
     // OpenConnect waits on a person at a dialog rather than on the network, and
@@ -149,36 +148,9 @@ Item {
       ? "Authenticating with " + (target.gateway || target.label) + "…"
       : "Connecting to " + target.label + "…"
 
-    // NetworkManager will happily run two tunnels at once, and picking one
-    // profile is never a request for both. The controller only enforces this
-    // between backends, so the profiles inside this one take each other down.
-    var active = NetworkManager.activeNmProfile(profiles)
-    if (active && active.uuid !== target.uuid) {
-      _stage = "handover"
-      connectProcess.command = ["nmcli", "connection", "down", "uuid", active.uuid]
-    } else {
-      _stage = "final"
-      connectProcess.command = root.activation(target)
-    }
-    connectProcess.running = true
-  }
-
-  // A target either names its own program or hands arguments to nmcli. Only
-  // OpenConnect does the former, because its activation runs the auth dialog
-  // first and cannot be spelled as an nmcli invocation.
-  function activation(target) {
-    if (target && target.command) return target.command
-    return ["nmcli"].concat((target && target.args) || [])
-  }
-
-  function connectPending() {
-    var target = root._pendingTarget
-    if (!target) {
-      root._stage = ""
-      return
-    }
-    root._stage = "final"
-    connectProcess.command = root.activation(target)
+    // Split tunnels are independent. Never tear down a different profile.
+    _stage = "connect"
+    connectProcess.command = NetworkManager.nmActivationCommand(target)
     connectProcess.running = true
   }
 
@@ -186,17 +158,24 @@ Item {
     return /no valid secrets|secrets were required|vpn\.secrets/i.test(String(text || ""))
   }
 
+  function disconnectTarget(target) {
+    if (!target) return
+    disconnectProfiles(target.uuid)
+  }
+
   function disconnect() {
+    disconnectProfiles("")
+  }
+
+  function disconnectProfiles(uuid) {
     if (!detected || _working) return
-
-    var active = NetworkManager.activeNmProfile(profiles)
-    if (!active) return
-
-    _desired = 0
-    _stage = "final"
+    var args = NetworkManager.nmDisconnectArgs(profiles, uuid)
+    if (args.length === 0) return
+    _pendingTarget = null
+    _stage = "disconnect"
     lastError = ""
-    actionStatus = "Disconnecting…"
-    connectProcess.command = ["nmcli", "connection", "down", "uuid", active.uuid]
+    actionStatus = uuid ? "Disconnecting profile…" : "Disconnecting all profiles…"
+    connectProcess.command = ["nmcli"].concat(args)
     connectProcess.running = true
   }
 
@@ -228,7 +207,6 @@ Item {
     }
 
     root.profiles = eligible
-    if (_desired !== -1 && (NetworkManager.activeNmProfile(eligible) !== null) === (_desired === 1)) _desired = -1
   }
 
   Timer {
@@ -236,15 +214,6 @@ Item {
     interval: 2600
     repeat: false
     onTriggered: root.actionStatus = ""
-  }
-
-  // Starting the second command from inside onExited would re-enter the process
-  // that is still finishing, so the handover hops through the event loop first.
-  Timer {
-    id: chainTimer
-    interval: 0
-    repeat: false
-    onTriggered: root.connectPending()
   }
 
   // NetworkManager reports the new state a beat after nmcli returns.
@@ -260,7 +229,6 @@ Item {
       if (settleTimer.ticks >= 4) {
         settleTimer.ticks = 0
         settleTimer.running = false
-        root._desired = -1
       }
     }
   }
@@ -468,18 +436,8 @@ Item {
     onExited: function(exitCode) {
       var output = String(connectStderr.text || "") + "\n" + String(connectStdout.text || "")
 
-      // The old tunnel is down (or refused to come down, which is not a reason
-      // to swallow the connect the user asked for). Either way, bring up the
-      // one they picked.
-      if (root._stage === "handover") {
-        root._stage = ""
-        chainTimer.restart()
-        return
-      }
-
       root._stage = ""
       if (exitCode !== 0) {
-        root._desired = -1
         var target = root._pendingTarget
         // OpenConnect has already had its conversation, in the auth dialog the
         // helper raised. Sending it to a terminal would offer `nmcli --ask`,
